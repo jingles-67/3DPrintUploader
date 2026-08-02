@@ -1,0 +1,10 @@
+Package: 3d-print-uploader
+Version: @VERSION@
+Section: utils
+Priority: optional
+Architecture: @ARCH@
+Maintainer: 3D Printing William
+Depends: libc6 (>= 2.31), libfontconfig1, libx11-6, libxext6, libxft2, libxrender1
+Description: Upload 3D printing files to Google Drive
+ Creates stable public download links and QR codes, with optional Beacons.ai
+ integration. Each user supplies their own Google OAuth credentials.

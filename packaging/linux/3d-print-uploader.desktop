@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=3D Print Uploader
+Comment=Upload 3D printing files to Google Drive
+Exec=3d-print-uploader
+Icon=3d-print-uploader
+Terminal=false
+Categories=Utility;Graphics;
+StartupNotify=true
