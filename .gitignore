@@ -1,0 +1,21 @@
+# Private user data and OAuth secrets
+credentials.json
+token.json
+config.json
+history.json
+app.log
+
+# Python and build output
+.venv/
+__pycache__/
+*.py[cod]
+build/
+dist/
+publish/
+temp/
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
