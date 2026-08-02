@@ -1,0 +1,125 @@
+name: Build installers
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: Windows installer
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install Python dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Install NSIS
+        run: choco install nsis --yes --no-progress
+      - name: Build application
+        run: python -m PyInstaller --noconfirm --clean "3D Print Uploader.spec"
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          $makensis = "${env:ProgramFiles(x86)}\NSIS\makensis.exe"
+          & $makensis /V3 "/DAPP_VERSION=$version" "/DAPP_VERSION_4=$version.0" installer\3DPrintUploader.nsi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-windows
+          path: dist/3D Print Uploader Setup.exe
+
+  linux:
+    name: Ubuntu, Linux Mint, and portable Linux
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            architecture: amd64
+          - runner: ubuntu-24.04-arm
+            architecture: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install build requirements
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes python3-tk tk-dev
+          python -m pip install -r requirements.txt
+      - name: Build Linux packages
+        run: bash packaging/build_linux.sh dist/release-assets
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-linux-${{ matrix.architecture }}
+          path: dist/release-assets/*
+
+  macos:
+    name: macOS disk image
+    strategy:
+      matrix:
+        include:
+          - runner: macos-15
+            architecture: arm64
+          - runner: macos-15-intel
+            architecture: x86_64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Build macOS package
+        run: bash packaging/build_macos.sh dist/release-assets
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-macos-${{ matrix.architecture }}
+          path: dist/release-assets/*
+
+  source:
+    name: Other files
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Create portable source archive
+        run: python packaging/build_portable.py dist/release-assets
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-other-files
+          path: dist/release-assets/*
+
+  publish:
+    name: Add files to GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows, linux, macos, source]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: release-assets
+      - name: Create release and upload installers
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          sha256sum release-assets/* > release-assets/SHA256SUMS.txt
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --generate-notes --title "3D Print Uploader $TAG"
+          gh release upload "$TAG" release-assets/* --clobber
